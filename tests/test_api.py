@@ -1,5 +1,5 @@
 import responses
-from pytest import mark
+from pytest import mark, raises
 from src.inquestor.inquestor import ingest
 from dataclasses import dataclass
 from requests import Response
@@ -186,3 +186,30 @@ def test_ingest(exchange_data, next_page):
 
     for i, item in enumerate(data):
         assert item["data"] == exchange_data[i].response_data.json["data"]
+
+
+@mark.parametrize(
+    "exchange_data",
+    [
+        (exchange_data_params),
+    ],
+)
+@responses.activate
+def test_next_page_function_correct(exchange_data):
+    for item in exchange_data:
+        responses.add(
+            responses.GET,
+            str(item.request_data.url),
+            json=item.response_data.json,
+            status=200,
+            match=[matchers.query_param_matcher(item.request_data.params)],
+        )
+    data = ingest(
+        method="GET",
+        url="https://api.test",
+        next_page="not a function",
+        params={"param2": 0},
+    )
+    with raises(TypeError):
+        for _i, item in enumerate(data):
+            pass

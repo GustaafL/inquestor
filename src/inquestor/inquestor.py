@@ -1,5 +1,5 @@
 from typing import Any
-from dataclasses import dataclass
+import inspect
 from requests import Session
 from urllib3.util import Url
 
@@ -71,8 +71,10 @@ def ingest(
         If Tuple, ('cert', 'key') pair.
     :rtype: requests.Response
     """
-    local_args = locals()
+    local_args = locals().copy()
     local_args.pop("next_page")
+    if not inspect.isfunction(next_page):
+        raise TypeError("next_page must be a function")
     session = Session()
     arg_value, keyword = next_page(initial=True)
 
