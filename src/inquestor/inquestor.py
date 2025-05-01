@@ -1,5 +1,7 @@
 from typing import Any
+import inspect
 from requests import Session
+from urllib3.util import Url
 
 
 def next_page(initial: bool, arg_value=None, keyword="") -> tuple[Any, str]:
@@ -69,16 +71,16 @@ def ingest(
         If Tuple, ('cert', 'key') pair.
     :rtype: requests.Response
     """
+    local_args = locals().copy()
+    local_args.pop("next_page")
+    if not inspect.isfunction(next_page):
+        raise TypeError("next_page must be a function")
     session = Session()
     arg_value, keyword = next_page(initial=True)
 
-    local_args = locals()
-    local_args.pop("next_page")
-    local_args.pop("session")
-    local_args.pop("arg_value")
-    local_args.pop("keyword")
     while arg_value:
-        local_args[keyword] = arg_value
+        local_args = update_arg_value(local_args, keyword, arg_value)
+        print(local_args)
         response = session.request(
             **local_args,
         )
@@ -91,3 +93,13 @@ def ingest(
         else:
             print(f"Error: {response.status_code}")
             break
+
+
+def update_arg_value(local_args, keyword, arg_value):
+    if isinstance(arg_value, dict):
+        local_args[keyword] |= arg_value
+    elif isinstance(arg_value, Url):
+        local_args[keyword] = arg_value
+    else:
+        local_args[keyword] = arg_value
+    return local_args
