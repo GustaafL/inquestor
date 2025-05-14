@@ -6,7 +6,7 @@ readme = "README.md"
 authors = [
     { name = "GustaafL", email = "41048720+GustaafL@users.noreply.github.com" }
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "requests>=2.32.3",
 ]
@@ -19,6 +19,7 @@ build-backend = "hatchling.build"
 dev = [
     "basedpyright>=1.28.4",
     "pytest>=8.3.5",
+    "responses>=0.25.7",
 ]
 lint = [
     "ruff>=0.11.2",

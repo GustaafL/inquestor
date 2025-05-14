@@ -1,6 +1,6 @@
 import responses
 from pytest import mark, raises
-from src.inquestor.inquestor import ingest
+from src.inquestor.inquestor import ingest, update_args, update_arg, validate_keys
 from dataclasses import dataclass
 from requests import Response
 from responses import matchers
@@ -24,6 +24,36 @@ class ExchangeData:
     response_data: ResponsesData
     request_data: RequestData
 
+def test_update_arg():
+    args_dict = {"params": {"param1": 10, "param2": 0},
+                  "url": "https://api.test"}
+    _, value = update_arg(("params" ,{"param1": 0}), args_dict)
+    assert value == {"param1": 10, "param2": 0}
+    args_dict = {"params": {"param1": 0, "param2": 0},
+                  "url": "https://api.test_new"}
+    _, value = update_arg(("url", "https://api.test"), args_dict)
+    assert value == "https://api.test_new"
+
+def test_update_args():
+    local_args = {"params": {"param1": 0, "param2": 0},
+                  "url": "https://api.test"}
+    local_args = update_args({"url": "https://api.test_new"},local_args )
+    assert local_args["url"] == "https://api.test_new"
+    assert local_args["params"] == {"param1": 0, "param2": 0}
+    new_args_dict = update_args( {"params": {"param1": 10}},local_args)
+    assert isinstance(local_args["params"], dict)
+    local_args["params"] |= {"param1": 10}
+    assert new_args_dict["params"] == {"param1": 10, "param2": 0}
+
+def test_validate_keys():
+    local_args = {"params": {"param1": 0, "param2": 0},
+                  "url": "https://api.test"}
+    new_local_args = validate_keys(local_args)
+    assert new_local_args == local_args
+    with raises(ValueError):
+        validate_keys({"params": {"param1": 0, "param2": 0},
+                       "url": 10,
+                       "not_a_key": "value"})
 
 exchange_data_params = [
     ExchangeData(
@@ -104,52 +134,54 @@ exchange_data_url_as_object = [
 
 
 def next_page_params(
-    initial: bool, keyword="params", arg_value=None, response: Response | None = None
+    keyword_arg_dict = None, response: Response | None = None
 ):
-    if initial or arg_value is None:
-        return {"param1": 0}, keyword
+    if keyword_arg_dict is None:
+        return {"params":{"param1": 0}}
     else:
+        arg_value = keyword_arg_dict["params"]
         arg_value["param1"] += 10
     if arg_value["param1"] > 20:
-        return False, keyword
-    return arg_value, keyword
+        return False
+    return {"params": arg_value}
 
 
 def next_page_url(
-    initial: bool, keyword="url", arg_value=None, response: Response | None = None
+    keyword_arg_dict = None, response: Response | None = None
 ):
-    if initial or arg_value is None:
-        arg_value = "https://api.test/0"
-        url_page_value = 0
+    if keyword_arg_dict is None:
+        return {"url": "https://api.test/0"}
     else:
+        arg_value = keyword_arg_dict["url"]
         url_page_value = arg_value.split("/")[-1]
         url_page_value = int(url_page_value) + 1
         arg_value = f"https://api.test/{url_page_value}"
     if url_page_value > 2:
-        return False, keyword
-    return arg_value, keyword
+        return False
+    return {"url": arg_value}
 
 
 def next_page_from_response(
-    initial: bool, keyword="url", arg_value=None, response: Response | None = None
+    keyword_arg_dict = None, response: Response | None = None
 ):
-    if initial:
-        return "https://api.test", keyword
-    elif response:
-        next_url = response.json().get("next_url", False)
+    if keyword_arg_dict is None:
+        return {"url": "https://api.test"}
     else:
-        next_url = False
-    return next_url, keyword
+        if response is None:
+            raise TypeError("response is None")
+        next_url = response.json().get("next_url", False)
+    return {"url": next_url} if next_url else False
 
 
 def next_page_url_as_object(
-    initial: bool, keyword="url", arg_value=None, response: Response | None = None
+    keyword_arg_dict = None, response: Response | None = None
 ):
-    if initial or arg_value is None:
+    if keyword_arg_dict is None:
         url_page_value = 0
         path = "/0"
         arg_value = Url(scheme="https", host="api.test", port=None, path=path)
     else:
+        arg_value = keyword_arg_dict["url"]
         path = arg_value.path
         if isinstance(path, str):
             url_page_value = int(path.removeprefix("/")) + 1
@@ -157,8 +189,8 @@ def next_page_url_as_object(
                 scheme="https", host="api.test", port=None, path=f"/{url_page_value}"
             )
             if url_page_value > 2:
-                return False, keyword
-    return arg_value, keyword
+                return False
+    return {"url": arg_value}
 
 
 @mark.parametrize(

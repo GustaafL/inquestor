@@ -1,12 +1,110 @@
 from typing import Any
+from functools import reduce
 import inspect
 from requests import Session
 from urllib3.util import Url
+from enum import Enum
 
 
-def next_page(initial: bool, arg_value=None, keyword="") -> tuple[Any, str]:
-    _ = initial
-    return arg_value, keyword
+class MutableRequestInput(Enum):
+    url = "url"
+    params = "params"
+    data = "data"
+    headers = "headers"
+    cookies = "cookies"
+    files = "files"
+    auth = "auth"
+    hooks = "hooks"
+    stream = "stream"
+    verify = "verify"
+    json = "json"
+
+
+class RequestInput(Enum):
+    method = "method"
+    url = "url"
+    params = "params"
+    data = "data"
+    headers = "headers"
+    cookies = "cookies"
+    files = "files"
+    auth = "auth"
+    timeout = "timeout"
+    allow_redirects = "allow_redirects"
+    proxies = "proxies"
+    hooks = "hooks"
+    stream = "stream"
+    verify = "verify"
+    json = "json"
+
+
+type KeywordArgDict = dict[MutableRequestInput, Any]
+
+
+def update_arg_value(local_args, keyword, arg_value):
+    if isinstance(arg_value, dict):
+        local_args[keyword] |= arg_value
+    elif isinstance(arg_value, Url):
+        local_args[keyword] = arg_value
+    else:
+        local_args[keyword] = arg_value
+    return local_args
+
+
+def filter_request_input(acc, item):
+    key, value = item
+    if key in RequestInput:
+        acc[key] = value
+    return acc
+
+
+def check_is_function(func):
+    if not inspect.isfunction(func):
+        raise TypeError(f"{func} must be a function")
+    return func
+
+
+def next_page(keyword_arg_dict: KeywordArgDict | None = None) -> KeywordArgDict | None:
+    if keyword_arg_dict is None:
+        return {MutableRequestInput.url: "placeholder"}
+    return keyword_arg_dict
+
+
+def authenticate() -> KeywordArgDict | None:
+    auth_token = "your_auth_token"  # Replace with actual authentication logic
+    return {MutableRequestInput.headers: {"Authorization": f"Bearer {auth_token}"}}
+
+
+def validate_keys(args_dict):
+    valid_keys = set(MutableRequestInput.__members__.keys())
+    invalid_keys = set(args_dict.keys()) - valid_keys
+    
+    if invalid_keys:
+        raise ValueError(
+            f"Invalid keyword(s) provided: {sorted(invalid_keys)}"
+            f"Valid keywords are: {sorted(valid_keys)}"
+            "The authenticate or next_page return dict is not valid."
+        )
+    return args_dict
+
+def update_arg(item, args_dict):
+    key, value = item
+
+    if key in args_dict:
+        if isinstance(args_dict[key], dict):
+            value |= args_dict[key]
+            return key, value
+        else:
+            return key, args_dict[key]
+    return key, value
+
+
+def update_args(args_dict, input_dict):
+    def process_item(acc, item):
+        key, value = update_arg(item, args_dict)
+        return {**acc, key: value}
+
+    return reduce(process_item, input_dict.items(), {})
 
 
 def ingest(
@@ -27,6 +125,7 @@ def ingest(
     cert=None,
     json=None,
     next_page=next_page,
+    authenticate=None,
 ):
     """Constructs a :class:`Request <Request>`, prepares it and sends it.
     Returns :class:`Response <Response>` object.
@@ -71,35 +170,25 @@ def ingest(
         If Tuple, ('cert', 'key') pair.
     :rtype: requests.Response
     """
-    local_args = locals().copy()
-    local_args.pop("next_page")
-    if not inspect.isfunction(next_page):
-        raise TypeError("next_page must be a function")
-    session = Session()
-    arg_value, keyword = next_page(initial=True)
+    request_input_args = reduce(filter_request_input, locals().items(), {})
 
-    while arg_value:
-        local_args = update_arg_value(local_args, keyword, arg_value)
+    check_is_function(next_page)
+    if authenticate:
+        check_is_function(authenticate)
+        request_input_args = update_args(validate_keys(authenticate()), request_input_args)
+    session = Session()
+    next_page_dict = next_page()
+    while next_page_dict:
+        local_args = update_args(validate_keys(next_page_dict), request_input_args)
         print(local_args)
+
         response = session.request(
             **local_args,
         )
 
-        arg_value, keyword = next_page(
-            initial=False, arg_value=arg_value, keyword=keyword, response=response
-        )
+        next_page_dict = next_page(next_page_dict, response=response)
         if response.status_code == 200:
             yield response.json()
         else:
             print(f"Error: {response.status_code}")
             break
-
-
-def update_arg_value(local_args, keyword, arg_value):
-    if isinstance(arg_value, dict):
-        local_args[keyword] |= arg_value
-    elif isinstance(arg_value, Url):
-        local_args[keyword] = arg_value
-    else:
-        local_args[keyword] = arg_value
-    return local_args
