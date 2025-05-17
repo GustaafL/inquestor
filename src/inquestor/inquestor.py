@@ -78,7 +78,7 @@ def authenticate() -> KeywordArgDict | None:
 def validate_keys(args_dict):
     valid_keys = set(MutableRequestInput.__members__.keys())
     invalid_keys = set(args_dict.keys()) - valid_keys
-    
+
     if invalid_keys:
         raise ValueError(
             f"Invalid keyword(s) provided: {sorted(invalid_keys)}"
@@ -86,6 +86,7 @@ def validate_keys(args_dict):
             "The authenticate or next_page return dict is not valid."
         )
     return args_dict
+
 
 def update_arg(item, args_dict):
     key, value = item
@@ -175,7 +176,9 @@ def ingest(
     check_is_function(next_page)
     if authenticate:
         check_is_function(authenticate)
-        request_input_args = update_args(validate_keys(authenticate()), request_input_args)
+        request_input_args = update_args(
+            validate_keys(authenticate()), request_input_args
+        )
     session = Session()
     next_page_dict = next_page()
     while next_page_dict:

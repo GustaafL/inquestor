@@ -24,36 +24,36 @@ class ExchangeData:
     response_data: ResponsesData
     request_data: RequestData
 
+
 def test_update_arg():
-    args_dict = {"params": {"param1": 10, "param2": 0},
-                  "url": "https://api.test"}
-    _, value = update_arg(("params" ,{"param1": 0}), args_dict)
+    args_dict = {"params": {"param1": 10, "param2": 0}, "url": "https://api.test"}
+    _, value = update_arg(("params", {"param1": 0}), args_dict)
     assert value == {"param1": 10, "param2": 0}
-    args_dict = {"params": {"param1": 0, "param2": 0},
-                  "url": "https://api.test_new"}
+    args_dict = {"params": {"param1": 0, "param2": 0}, "url": "https://api.test_new"}
     _, value = update_arg(("url", "https://api.test"), args_dict)
     assert value == "https://api.test_new"
 
+
 def test_update_args():
-    local_args = {"params": {"param1": 0, "param2": 0},
-                  "url": "https://api.test"}
-    local_args = update_args({"url": "https://api.test_new"},local_args )
+    local_args = {"params": {"param1": 0, "param2": 0}, "url": "https://api.test"}
+    local_args = update_args({"url": "https://api.test_new"}, local_args)
     assert local_args["url"] == "https://api.test_new"
     assert local_args["params"] == {"param1": 0, "param2": 0}
-    new_args_dict = update_args( {"params": {"param1": 10}},local_args)
+    new_args_dict = update_args({"params": {"param1": 10}}, local_args)
     assert isinstance(local_args["params"], dict)
     local_args["params"] |= {"param1": 10}
     assert new_args_dict["params"] == {"param1": 10, "param2": 0}
 
+
 def test_validate_keys():
-    local_args = {"params": {"param1": 0, "param2": 0},
-                  "url": "https://api.test"}
+    local_args = {"params": {"param1": 0, "param2": 0}, "url": "https://api.test"}
     new_local_args = validate_keys(local_args)
     assert new_local_args == local_args
     with raises(ValueError):
-        validate_keys({"params": {"param1": 0, "param2": 0},
-                       "url": 10,
-                       "not_a_key": "value"})
+        validate_keys(
+            {"params": {"param1": 0, "param2": 0}, "url": 10, "not_a_key": "value"}
+        )
+
 
 exchange_data_params = [
     ExchangeData(
@@ -133,11 +133,9 @@ exchange_data_url_as_object = [
 ]
 
 
-def next_page_params(
-    keyword_arg_dict = None, response: Response | None = None
-):
+def next_page_params(keyword_arg_dict=None, response: Response | None = None):
     if keyword_arg_dict is None:
-        return {"params":{"param1": 0}}
+        return {"params": {"param1": 0}}
     else:
         arg_value = keyword_arg_dict["params"]
         arg_value["param1"] += 10
@@ -146,9 +144,7 @@ def next_page_params(
     return {"params": arg_value}
 
 
-def next_page_url(
-    keyword_arg_dict = None, response: Response | None = None
-):
+def next_page_url(keyword_arg_dict=None, response: Response | None = None):
     if keyword_arg_dict is None:
         return {"url": "https://api.test/0"}
     else:
@@ -161,9 +157,7 @@ def next_page_url(
     return {"url": arg_value}
 
 
-def next_page_from_response(
-    keyword_arg_dict = None, response: Response | None = None
-):
+def next_page_from_response(keyword_arg_dict=None, response: Response | None = None):
     if keyword_arg_dict is None:
         return {"url": "https://api.test"}
     else:
@@ -173,9 +167,7 @@ def next_page_from_response(
     return {"url": next_url} if next_url else False
 
 
-def next_page_url_as_object(
-    keyword_arg_dict = None, response: Response | None = None
-):
+def next_page_url_as_object(keyword_arg_dict=None, response: Response | None = None):
     if keyword_arg_dict is None:
         url_page_value = 0
         path = "/0"
