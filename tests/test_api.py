@@ -1,10 +1,13 @@
 import responses
+import requests
+from datetime import datetime, timedelta
 from pytest import mark, raises
 from src.inquestor.inquestor import ingest, update_args, update_arg, validate_keys
 from dataclasses import dataclass
 from requests import Response
 from responses import matchers
 from urllib3.util import Url
+import time
 
 
 @dataclass
@@ -237,3 +240,149 @@ def test_next_page_function_correct(exchange_data):
     with raises(TypeError):
         for _i, item in enumerate(data):
             pass
+
+@responses.activate
+def test_authenticate():
+    responses.add(
+        responses.GET,
+        "https://api.test",
+        json={"data": "response1"},
+        status=200,
+        match=[matchers.header_matcher({"authorization": "Bearer token"})],
+    )
+    def next_page(keyword_arg_dict=None, response: Response | None = None):
+        if keyword_arg_dict is None:
+            return {"url": "https://api.test"}
+        else:
+            return False
+    def authenticate(reauth_dict=None, response: Response | None = None):
+        return {"headers" : {"authorization": "Bearer token"}}, reauth_dict
+    data = ingest(
+        method="GET",
+        url="https://api.test",
+        next_page=next_page,
+        params={"param2": 0},
+        authenticate=authenticate,
+    )
+    for _i, item in enumerate(data):
+        assert item["data"] == "response1"
+
+
+
+@responses.activate
+def test_reauthenticate():
+    responses.add(
+        responses.GET,
+        "https://api.test",
+        json={"data": "response1"},
+        status=200,
+        match=[matchers.header_matcher({"authorization": "Bearer token"})],
+    )
+    responses.add(
+        responses.GET,
+        "https://api.test2",
+        json={"data": "response2"},
+        status=200,
+        match=[matchers.header_matcher({"authorization": "Bearer token2"})],
+    )
+    def next_page(keyword_arg_dict=None, response: Response | None = None):
+        if keyword_arg_dict is None:
+            return {"url": "https://api.test"}
+        if keyword_arg_dict["url"] == "https://api.test":
+            return {"url": "https://api.test2"}
+        else:
+            return False
+    def authenticate(reauth_dict=None, response: Response | None = None):
+        if reauth_dict is None:
+            return {"headers" : {"authorization": "Bearer token"}}, {"reauth": True}
+        else:
+            return {"headers" : {"authorization": "Bearer token2"}}, reauth_dict
+    data = ingest(
+        method="GET",
+        url="https://api.test",
+        next_page=next_page,
+        params={"param2": 0},
+        authenticate=authenticate,
+    )
+    response_data = [
+        {"data": "response1"},
+        {"data": "response2"},
+    ]
+    for i, item in enumerate(data):
+        assert item["data"] == response_data[i]["data"]
+
+@responses.activate
+def test_reautheticate_time_condition():
+    responses.add(
+        responses.GET,
+        "https://api.test",
+        json={"data": "response1"},
+        status=200,
+        match=[matchers.header_matcher({"authorization": "Bearer auth_token_initial"})],
+    )
+    responses.add(
+        responses.GET,
+        "https://api.test2",
+        json={"data": "response2"},
+        status=200,
+        match=[matchers.header_matcher({"authorization": "Bearer auth_token_updated"})],
+    )
+    responses.add(
+            responses.GET,
+            "https://api.authenticate",
+            json={"token": "auth_token_initial"},
+            status=200,
+            match=[matchers.header_matcher({"refresh_token": "refresh_token"})],
+    )
+    responses.add(
+            responses.GET,
+            "https://api.authenticate",
+            json={"token": "auth_token_updated"},
+            status=200,
+            match=[matchers.header_matcher({"refresh_token": "refresh_token"})],
+    )
+    def next_page(keyword_arg_dict=None, response: Response | None = None):
+        if keyword_arg_dict is None:
+            return {"url": "https://api.test"}
+        if keyword_arg_dict["url"] == "https://api.test":
+            return {"url": "https://api.test2"}
+        else:
+            return False
+    def authenticate(reauth_dict=None, response: Response | None = None):
+        if reauth_dict is None:
+            response = requests.get(
+                "https://api.authenticate",
+                headers={"refresh_token": "refresh_token"},
+            )
+            token = response.json()["token"]
+            now = datetime.now()
+            expiry_time = now + timedelta(seconds=2)
+            reauth = {"expiry_time": expiry_time}
+            return {"headers": {"authorization": f"Bearer {token}"}}, reauth
+        else:
+            now = datetime.now()
+            if now >= reauth_dict["expiry_time"]:
+                response = requests.get(
+                    "https://api.authenticate",
+                    headers={"refresh_token": "refresh_token"},
+                )
+                token = response.json()["token"]
+                expiry_time = now + timedelta(seconds=1)
+                reauth_dict["expiry_time"] = expiry_time
+                return {"headers": {"authorization": f"Bearer {token}"}}, reauth_dict
+            return None, reauth_dict
+
+    data = ingest(
+        method="GET",
+        url="https://api.test",
+        next_page=next_page,
+        params={"param2": 0},
+        authenticate=authenticate,
+    )
+    response_data = [
+        {"data": "response1"},
+        {"data": "response2"},
+    ]
+    for i, item in enumerate(data):
+        assert item["data"] == response_data[i]["data"]
+        time.sleep(2)

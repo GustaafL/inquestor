@@ -1,7 +1,7 @@
 from typing import Any
 from functools import reduce
 import inspect
-from requests import Session
+from requests import Response, Session
 from urllib3.util import Url
 from enum import Enum
 
@@ -64,15 +64,21 @@ def check_is_function(func):
     return func
 
 
-def next_page(keyword_arg_dict: KeywordArgDict | None = None) -> KeywordArgDict | None:
+def next_page(
+    keyword_arg_dict: KeywordArgDict | None = None, response: Response | None = None
+) -> KeywordArgDict | None:
     if keyword_arg_dict is None:
         return {MutableRequestInput.url: "placeholder"}
     return keyword_arg_dict
 
 
-def authenticate() -> KeywordArgDict | None:
-    auth_token = "your_auth_token"  # Replace with actual authentication logic
-    return {MutableRequestInput.headers: {"Authorization": f"Bearer {auth_token}"}}
+def authenticate(
+    reauth_dict, response: Response | None = None
+) -> tuple[KeywordArgDict | None, dict[str, Any] | None]:
+    auth_token = "your_auth_token"
+    return {
+        MutableRequestInput.headers: {"Authorization": f"Bearer {auth_token}"}
+    }, reauth_dict
 
 
 def validate_keys(args_dict):
@@ -93,7 +99,10 @@ def update_arg(item, args_dict):
 
     if key in args_dict:
         if isinstance(args_dict[key], dict):
-            value |= args_dict[key]
+            if isinstance(value, dict):
+                value |= args_dict[key]
+            else:
+                value = args_dict[key]
             return key, value
         else:
             return key, args_dict[key]
@@ -176,17 +185,27 @@ def ingest(
     check_is_function(next_page)
     if authenticate:
         check_is_function(authenticate)
-        request_input_args = update_args(
-            validate_keys(authenticate()), request_input_args
-        )
+    reauth_dict = None
+    response = None
     session = Session()
     next_page_dict = next_page()
     while next_page_dict:
-        local_args = update_args(validate_keys(next_page_dict), request_input_args)
-        print(local_args)
+        request_input_args = update_args(
+            validate_keys(next_page_dict), request_input_args
+        )
+        print(request_input_args)
+
+        if authenticate:
+            authenticate_args, reauth_dict = authenticate(
+                reauth_dict=reauth_dict, response=response
+            )
+            if authenticate_args:
+                request_input_args = update_args(
+                    validate_keys(authenticate_args), request_input_args
+                )
 
         response = session.request(
-            **local_args,
+            **request_input_args,
         )
 
         next_page_dict = next_page(next_page_dict, response=response)
@@ -195,3 +214,6 @@ def ingest(
         else:
             print(f"Error: {response.status_code}")
             break
+        # add retry logic
+        # add error handling
+    session.close()
