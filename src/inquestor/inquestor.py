@@ -2,8 +2,9 @@ from typing import Any
 from functools import reduce
 import inspect
 from requests import Response, Session
-from urllib3.util import Url
+from urllib3.util import Url, Retry
 from enum import Enum
+from requests.adapters import HTTPAdapter
 
 
 class MutableRequestInput(Enum):
@@ -116,6 +117,21 @@ def update_args(args_dict, input_dict):
 
     return reduce(process_item, input_dict.items(), {})
 
+def validate_response(response: Response) -> bool:
+    """Validates the response object.
+
+    :param response: The Response object to validate.
+    :return: True if the response is valid, False otherwise.
+    """
+    if response.status_code == 200:
+        return True
+    elif response.status_code in {401, 403}:
+        print("Authentication error or forbidden access.")
+        return False
+    else:
+        print(f"Unexpected status code: {response.status_code}")
+        return False
+
 
 def ingest(
     method,
@@ -134,6 +150,7 @@ def ingest(
     verify=None,
     cert=None,
     json=None,
+    retries: Retry | None = None,
     next_page=next_page,
     authenticate=None,
 ):
@@ -188,6 +205,10 @@ def ingest(
     reauth_dict = None
     response = None
     session = Session()
+    if retries:
+        session.mount(
+            "http://", HTTPAdapter(max_retries=retries)
+        )
     next_page_dict = next_page()
     while next_page_dict:
         request_input_args = update_args(
@@ -208,12 +229,14 @@ def ingest(
             **request_input_args,
         )
 
-        next_page_dict = next_page(next_page_dict, response=response)
-        if response.status_code == 200:
+        if validate_response(response):
+            # If the response is valid, we can proceed to the next page
+            print("Valid response received.")
+            next_page_dict = next_page(next_page_dict, response=response)
+            
             yield response.json()
         else:
             print(f"Error: {response.status_code}")
             break
-        # add retry logic
-        # add error handling
     session.close()
+    # add rate limiting logic

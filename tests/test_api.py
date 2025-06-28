@@ -6,8 +6,9 @@ from src.inquestor.inquestor import ingest, update_args, update_arg, validate_ke
 from dataclasses import dataclass
 from requests import Response
 from responses import matchers
-from urllib3.util import Url
+from urllib3.util import Url, Retry
 import time
+
 
 
 @dataclass
@@ -386,3 +387,33 @@ def test_reautheticate_time_condition():
     for i, item in enumerate(data):
         assert item["data"] == response_data[i]["data"]
         time.sleep(2)
+
+
+def test_retry():
+    responses.add(
+        responses.GET,
+        "https://api.test",
+        json={"error": "errorresponse"},
+        status=500,
+    )
+    responses.add(
+        responses.GET,
+        "https://api.test",
+        json={"data": "response_success"},
+        status=200,
+    )
+
+    def next_page(keyword_arg_dict=None, response: Response | None = None):
+        return False
+    
+
+    data = ingest(
+        method="GET",
+        url="https://api.test",
+        next_page=next_page,
+        params={"param2": 0},
+        retries=Retry(total=3, backoff_factor=1, status_forcelist=[500]),
+    )
+    
+    for i, item in enumerate(data):
+        assert item["data"] == "response_success"
