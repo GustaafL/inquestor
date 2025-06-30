@@ -117,6 +117,7 @@ def update_args(args_dict, input_dict):
 
     return reduce(process_item, input_dict.items(), {})
 
+
 def validate_response(response: Response) -> bool:
     """Validates the response object.
 
@@ -132,7 +133,10 @@ def validate_response(response: Response) -> bool:
         print(f"Unexpected status code: {response.status_code}")
         return False
 
-def rate_limit(ratelimit_dict: dict[str, Any] | None = None, response: Response | None = None):
+
+def rate_limit(
+    ratelimit_dict: dict[str, Any] | None = None, response: Response | None = None
+):
     pass
 
 
@@ -213,9 +217,7 @@ def ingest(
     response = None
     session = Session()
     if retries:
-        session.mount(
-            "http://", HTTPAdapter(max_retries=retries)
-        )
+        session.mount("http://", HTTPAdapter(max_retries=retries))
     next_page_dict = next_page()
     while next_page_dict:
         request_input_args = update_args(
@@ -232,7 +234,9 @@ def ingest(
                     validate_keys(authenticate_args), request_input_args
                 )
         if rate_limit:
-            ratelimit_dict = rate_limit(ratelimit_dict=ratelimit_dict, response=response)
+            ratelimit_dict = rate_limit(
+                ratelimit_dict=ratelimit_dict, response=response
+            )
 
         response = session.request(
             **request_input_args,
@@ -242,11 +246,10 @@ def ingest(
             # If the response is valid, we can proceed to the next page
             print("Valid response received.")
             next_page_dict = next_page(next_page_dict, response=response)
-            
+
             yield response.json()
         else:
             print(f"Error: {response.status_code}")
             break
     session.close()
-    # add rate limiting logic
     # add logging options

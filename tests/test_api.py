@@ -10,7 +10,6 @@ from urllib3.util import Url, Retry
 import time
 
 
-
 @dataclass
 class ResponsesData:
     json: dict
@@ -242,6 +241,7 @@ def test_next_page_function_correct(exchange_data):
         for _i, item in enumerate(data):
             pass
 
+
 @responses.activate
 def test_authenticate():
     responses.add(
@@ -251,13 +251,16 @@ def test_authenticate():
         status=200,
         match=[matchers.header_matcher({"authorization": "Bearer token"})],
     )
+
     def next_page(keyword_arg_dict=None, response: Response | None = None):
         if keyword_arg_dict is None:
             return {"url": "https://api.test"}
         else:
             return False
+
     def authenticate(reauth_dict=None, response: Response | None = None):
-        return {"headers" : {"authorization": "Bearer token"}}, reauth_dict
+        return {"headers": {"authorization": "Bearer token"}}, reauth_dict
+
     data = ingest(
         method="GET",
         url="https://api.test",
@@ -267,7 +270,6 @@ def test_authenticate():
     )
     for _i, item in enumerate(data):
         assert item["data"] == "response1"
-
 
 
 @responses.activate
@@ -286,6 +288,7 @@ def test_reauthenticate():
         status=200,
         match=[matchers.header_matcher({"authorization": "Bearer token2"})],
     )
+
     def next_page(keyword_arg_dict=None, response: Response | None = None):
         if keyword_arg_dict is None:
             return {"url": "https://api.test"}
@@ -293,11 +296,13 @@ def test_reauthenticate():
             return {"url": "https://api.test2"}
         else:
             return False
+
     def authenticate(reauth_dict=None, response: Response | None = None):
         if reauth_dict is None:
-            return {"headers" : {"authorization": "Bearer token"}}, {"reauth": True}
+            return {"headers": {"authorization": "Bearer token"}}, {"reauth": True}
         else:
-            return {"headers" : {"authorization": "Bearer token2"}}, reauth_dict
+            return {"headers": {"authorization": "Bearer token2"}}, reauth_dict
+
     data = ingest(
         method="GET",
         url="https://api.test",
@@ -311,6 +316,7 @@ def test_reauthenticate():
     ]
     for i, item in enumerate(data):
         assert item["data"] == response_data[i]["data"]
+
 
 @responses.activate
 def test_reautheticate_time_condition():
@@ -329,19 +335,20 @@ def test_reautheticate_time_condition():
         match=[matchers.header_matcher({"authorization": "Bearer auth_token_updated"})],
     )
     responses.add(
-            responses.GET,
-            "https://api.authenticate",
-            json={"token": "auth_token_initial"},
-            status=200,
-            match=[matchers.header_matcher({"refresh_token": "refresh_token"})],
+        responses.GET,
+        "https://api.authenticate",
+        json={"token": "auth_token_initial"},
+        status=200,
+        match=[matchers.header_matcher({"refresh_token": "refresh_token"})],
     )
     responses.add(
-            responses.GET,
-            "https://api.authenticate",
-            json={"token": "auth_token_updated"},
-            status=200,
-            match=[matchers.header_matcher({"refresh_token": "refresh_token"})],
+        responses.GET,
+        "https://api.authenticate",
+        json={"token": "auth_token_updated"},
+        status=200,
+        match=[matchers.header_matcher({"refresh_token": "refresh_token"})],
     )
+
     def next_page(keyword_arg_dict=None, response: Response | None = None):
         if keyword_arg_dict is None:
             return {"url": "https://api.test"}
@@ -349,6 +356,7 @@ def test_reautheticate_time_condition():
             return {"url": "https://api.test2"}
         else:
             return False
+
     def authenticate(reauth_dict=None, response: Response | None = None):
         if reauth_dict is None:
             response = requests.get(
@@ -388,6 +396,7 @@ def test_reautheticate_time_condition():
         assert item["data"] == response_data[i]["data"]
         time.sleep(2)
 
+
 @responses.activate
 def test_retry():
     responses.add(
@@ -405,7 +414,6 @@ def test_retry():
 
     def next_page(keyword_arg_dict=None, response: Response | None = None):
         return False
-    
 
     data = ingest(
         method="GET",
@@ -414,9 +422,10 @@ def test_retry():
         params={"param2": 0},
         retries=Retry(total=3, backoff_factor=1, status_forcelist=[500]),
     )
-    
+
     for i, item in enumerate(data):
         assert item["data"] == "response_success"
+
 
 @responses.activate
 def test_rate_limit(mocker):
@@ -466,4 +475,3 @@ def test_rate_limit(mocker):
         assert item["data"] == response_list[i]
 
     mock_sleep.assert_called_once_with(1)
-
