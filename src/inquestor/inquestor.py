@@ -132,6 +132,9 @@ def validate_response(response: Response) -> bool:
         print(f"Unexpected status code: {response.status_code}")
         return False
 
+def rate_limit(ratelimit_dict: dict[str, Any] | None = None, response: Response | None = None):
+    pass
+
 
 def ingest(
     method,
@@ -153,6 +156,7 @@ def ingest(
     retries: Retry | None = None,
     next_page=next_page,
     authenticate=None,
+    rate_limit=None,
 ):
     """Constructs a :class:`Request <Request>`, prepares it and sends it.
     Returns :class:`Response <Response>` object.
@@ -202,7 +206,10 @@ def ingest(
     check_is_function(next_page)
     if authenticate:
         check_is_function(authenticate)
+    if rate_limit:
+        check_is_function(rate_limit)
     reauth_dict = None
+    ratelimit_dict = None
     response = None
     session = Session()
     if retries:
@@ -224,6 +231,8 @@ def ingest(
                 request_input_args = update_args(
                     validate_keys(authenticate_args), request_input_args
                 )
+        if rate_limit:
+            ratelimit_dict = rate_limit(ratelimit_dict=ratelimit_dict, response=response)
 
         response = session.request(
             **request_input_args,
@@ -240,3 +249,4 @@ def ingest(
             break
     session.close()
     # add rate limiting logic
+    # add logging options

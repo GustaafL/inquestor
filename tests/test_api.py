@@ -388,7 +388,7 @@ def test_reautheticate_time_condition():
         assert item["data"] == response_data[i]["data"]
         time.sleep(2)
 
-
+@responses.activate
 def test_retry():
     responses.add(
         responses.GET,
@@ -417,3 +417,53 @@ def test_retry():
     
     for i, item in enumerate(data):
         assert item["data"] == "response_success"
+
+@responses.activate
+def test_rate_limit(mocker):
+    responses.add(
+        responses.GET,
+        "https://api.test",
+        json={"data": "response1"},
+        status=200,
+        headers={"X-RateLimit-Limit": "0"},
+    )
+    responses.add(
+        responses.GET,
+        "https://api.test2",
+        json={"data": "response2"},
+        status=200,
+        headers={"X-RateLimit-Limit": "2"},
+    )
+    mock_sleep = mocker.patch("time.sleep", return_value=None)
+
+    def next_page(keyword_arg_dict=None, response: Response | None = None):
+        if keyword_arg_dict is None:
+            return {"url": "https://api.test"}
+        if keyword_arg_dict["url"] == "https://api.test":
+            return {"url": "https://api.test2"}
+        else:
+            return False
+
+    def rate_limit(ratelimit_dict=None, response: Response | None = None):
+        if response is None:
+            return {}
+        else:
+            ratelimit_dict = ratelimit_dict or {}
+            ratelimit_dict["limit"] = int(response.headers.get("X-RateLimit-Limit", 0))
+
+            if ratelimit_dict["limit"] <= 0:
+                time.sleep(1)
+            return {"ratelimit": ratelimit_dict}
+
+    data = ingest(
+        method="GET",
+        url="https://api.test",
+        next_page=next_page,
+        rate_limit=rate_limit,
+    )
+    response_list = ["response1", "response2"]
+    for i, item in enumerate(data):
+        assert item["data"] == response_list[i]
+
+    mock_sleep.assert_called_once_with(1)
+
