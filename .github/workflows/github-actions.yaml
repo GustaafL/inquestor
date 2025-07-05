@@ -1,0 +1,51 @@
+name: Run Pytest
+on: workflow_dispatch
+jobs:
+  ruff-check-and-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: '0.7.17'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '.python-version'
+
+      - name: Install the project
+        run: uv sync --locked --all-extras --dev
+
+      - name: Run ruff format
+        run: uv run ruff format
+      - name: Run ruff check
+        run: uv run ruff check .
+      - name: Run ruff fix
+        run: uv run ruff fix .
+      - uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: 'bot/ci: run ruff format and fix'
+
+
+  test-pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: '0.7.17'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '.python-version'
+
+      - name: Install the project
+        run: uv sync --locked --all-extras --dev
+
+      - name: Run tests
+        run: uv run pytest
+
